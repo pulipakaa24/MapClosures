@@ -78,6 +78,7 @@ protected:
     ClosureCandidate ValidateClosure(const int reference_id, const int query_id) const;
 
     Config config_;
+    float ratio_;
     Tree::MatchVectorMap descriptor_matches_;
     std::unordered_map<int, DensityMap> density_maps_;
     std::unordered_map<int, Eigen::Matrix4d> ground_alignments_;
