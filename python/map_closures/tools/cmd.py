@@ -49,8 +49,9 @@ def guess_dataloader(data: Path, default_dataloader: str):
         if (data / "metadata.yaml").exists():
             # a directory with a metadata.yaml must be a ROS2 bagfile
             return "rosbag", data
-        if len(glob.glob(os.path.join(data, "*.bag"))) > 0:
-            return "rosbag", data
+        bagfiles = [Path(path) for path in glob.glob(os.path.join(data, "*.bag"))]
+        if len(bagfiles) > 0:
+            return "rosbag", bagfiles
     return default_dataloader, data
 
 

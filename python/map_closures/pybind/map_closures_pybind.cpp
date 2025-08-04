@@ -71,6 +71,12 @@ PYBIND11_MODULE(map_closures_pybind, m) {
                  return std::make_shared<MapClosures>(config);
              }),
              "config"_a)
+        .def(py::init([](const py::dict &cfg, const float ratio) {
+                 // NEW CONSTRUCTOR: MapClosures(const Config &config, float ratio)
+                 auto config = GetConfigFromYAML(cfg);
+                 return std::make_shared<MapClosures>(config, ratio);
+             }),
+             "config"_a, "ratio"_a) // Give meaningful Python argument names
         .def("_getDensityMapFromId",
              [](MapClosures &self, const int &map_id) {
                  const auto &density_map = self.getDensityMapFromId(map_id);

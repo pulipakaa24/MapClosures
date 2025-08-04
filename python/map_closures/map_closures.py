@@ -32,9 +32,12 @@ ClosureCandidate: TypeAlias = map_closures_pybind._ClosureCandidate
 
 
 class MapClosures:
-    def __init__(self, config: MapClosuresConfig = MapClosuresConfig()):
+    def __init__(self, config: MapClosuresConfig = MapClosuresConfig(), ratio:float = 0):
         self._config = config
-        self._pipeline = map_closures_pybind._MapClosures(self._config.model_dump())
+        if ratio != 0:
+            self._pipeline = map_closures_pybind._MapClosures(self._config.model_dump(), ratio)
+        else:
+            self._pipeline = map_closures_pybind._MapClosures(self._config.model_dump())
 
     def get_best_closure(self, query_idx: int, local_map: np.ndarray) -> ClosureCandidate:
         pcd = map_closures_pybind._Vector3dVector(local_map)

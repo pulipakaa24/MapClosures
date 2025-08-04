@@ -22,10 +22,28 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import glob
 import os
 from typing import Optional
 
 import numpy as np
+
+
+def find_metadata_json(pcap_file: str) -> str:
+    """Attempts to resolve the metadata json file for a provided pcap file."""
+    dir_path, filename = os.path.split(pcap_file)
+    if not filename:
+        return ""
+    if not dir_path:
+        dir_path = os.getcwd()
+    json_candidates = sorted(glob.glob(f"{dir_path}/*.json"))
+    if not json_candidates:
+        return ""
+    prefix_sizes = list(
+        map(lambda p: len(os.path.commonprefix((filename, os.path.basename(p)))), json_candidates)
+    )
+    max_elem = max(range(len(prefix_sizes)), key=lambda i: prefix_sizes[i])
+    return json_candidates[max_elem]
 
 
 class OusterDataloader:
@@ -65,42 +83,64 @@ class OusterDataloader:
         """
 
         try:
-            from ouster.sdk import client, open_source
+            import ouster.pcap as pcap
+            from ouster import client
         except ImportError:
-            print(f'ouster-sdk is not installed on your system, run "pip install ouster-sdk"')
+            print(
+                f'[ERROR] ouster-sdk is not installed on your system, run "pip install ouster-sdk"'
+            )
             exit(1)
+
+        # since we import ouster-sdk's client module locally, we keep it locally as well
+        self._client = client
 
         assert os.path.isfile(data_dir), "Ouster pcap dataloader expects an existing PCAP file"
 
         # we expect `data_dir` param to be a path to the .pcap file, so rename for clarity
         pcap_file = data_dir
 
-        print("Indexing Ouster pcap to count the scans number ...")
-        source = open_source(str(pcap_file), meta=[meta] if meta else [], index=True)
-
-        # since we import ouster-sdk's client module locally, we keep reference
-        # to it locally as well
-        self._client = client
+        metadata_json = meta or find_metadata_json(pcap_file)
+        if not metadata_json:
+            print("[ERROR] Ouster pcap dataloader can't find metadata json file.")
+            exit(1)
+        print("[INFO] Ouster pcap dataloader: using metadata json: ", metadata_json)
 
         self.data_dir = os.path.dirname(data_dir)
 
+        with open(metadata_json) as json:
+            self._info_json = json.read()
+            self._info = client.SensorInfo(self._info_json)
+
         # lookup table for 2D range image projection to a 3D point cloud
-        self._xyz_lut = client.XYZLut(source.metadata)
+        self._xyz_lut = client.XYZLut(self._info)
 
         self._pcap_file = str(data_dir)
 
-        self._scans_num = len(source)
-        print(f"Ouster pcap total scans number:  {self._scans_num}")
+        # read pcap file for the first pass to count scans
+        print("[INFO] Pre-reading Ouster pcap to count the scans number ...")
+        self._source = pcap.Pcap(self._pcap_file, self._info)
+        self._scans_num = sum((1 for _ in client.Scans(self._source)))
+        print(f"[INFO] Ouster pcap total scans number:  {self._scans_num}")
 
         # frame timestamps array
         self._timestamps = np.linspace(0, self._scans_num, self._scans_num, endpoint=False)
 
-        self._source = source
+        # start Scans iterator for consumption in __getitem__
+        self._source = pcap.Pcap(self._pcap_file, self._info)
+        self._scans_iter = iter(client.Scans(self._source))
+        self._next_idx = 0
 
     def __getitem__(self, idx):
-        scan = self._source[idx]
+        # we assume that users always reads sequentially and do not
+        # pass idx as for a random access collection
+        assert self._next_idx == idx, (
+            "Ouster pcap dataloader supports only sequential reads. "
+            f"Expected idx: {self._next_idx}, but got {idx}"
+        )
+        scan = next(self._scans_iter)
+        self._next_idx += 1
 
-        self._timestamps[idx] = 1e-9 * scan.timestamp[0]
+        self._timestamps[self._next_idx - 1] = 1e-9 * scan.timestamp[0]
 
         timestamps = np.tile(np.linspace(0, 1.0, scan.w, endpoint=False), (scan.h, 1))
 
