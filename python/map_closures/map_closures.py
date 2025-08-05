@@ -42,6 +42,7 @@ class MapClosures:
     def get_best_closure(self, query_idx: int, local_map: np.ndarray) -> ClosureCandidate:
         pcd = map_closures_pybind._Vector3dVector(local_map)
         closure = self._pipeline._GetBestClosure(query_idx, pcd)
+        print("I'm here!")
         return closure
 
     def get_top_k_closures(
