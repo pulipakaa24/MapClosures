@@ -85,7 +85,7 @@ protected:
     std::unique_ptr<Tree> hbst_binary_tree_ = std::make_unique<Tree>();
     cv::Ptr<cv::DescriptorExtractor> orb_extractor_;
     cv::Ptr<cv::DescriptorExtractor> orb_extractor_init_;
-    bool initMap;
+    bool initMap = false;
     int nFeaturesInitial;
 };
 }  // namespace map_closures
